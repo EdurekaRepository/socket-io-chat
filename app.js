@@ -1,18 +1,22 @@
 var express=require('express'),
     app=express(),
     server=require('http').createServer(app),
-    io=require('socket.io').listen(server),
+    io=require('socket.io').listen(server);
+
     users={};
 
-server.listen(4000);
+    server.listen(8080);
 
 app.use(express.static(__dirname + '/public'));
+app.set('view engine','ejs');
 
 app.get('/',function(req,res){
-     res.sendFile(__dirname+'/index.html');
+     res.render('index');
 });
 
 io.sockets.on('connection',function(socket){
+
+      console.log("A New Connection Established");
 
       socket.on('new user',function(data,callback){
         if(data in users){
@@ -23,47 +27,50 @@ io.sockets.on('connection',function(socket){
           callback(true);
           socket.nickname=data;
           users[socket.nickname]=socket;
-          //nicknames.push(socket.nickname);
           updateNicknames();
         }
       });
+
 
       function updateNicknames(){
         io.sockets.emit('usernames',Object.keys(users));
       }
 
-      console.log("Connection Established");
 
       socket.on('send message',function(data,callback){
         var msg=data.trim();
-        if(msg.substr(0,3) === '/w '){
-          msg=msg.substr(3);
+
+        if(msg.substr(0,1) === '@'){
+          msg=msg.substr(1);
           var ind=msg.indexOf(' ');
           if(ind !== -1){
             var name=msg.substring(0,ind);
             var msg=msg.substring(ind+1);
              if(name in users){
                 users[name].emit('whisper',{msg:msg,nick:socket.nickname});
-                socket.emit('private',{msg:msg,nick:socket.nickname});
+                socket.emit('private',{msg:msg,nick:name});
               console.log("Whispering !");
             }else{
-              callback("Error Enter a valid user");
+              callback("Sorry, "+name+" is not online");
             }
           }else{
-            callback("Please enter a message for your whisperer");
+            callback("Looks like you forgot to write the message");
           }
 
-        } else{
-        console.log("Got Message :"+data)
-        io.sockets.emit('new message',{msg:msg,nick:socket.nickname});
+        }
+
+         else{
+         console.log("Got Message :"+data)
+         io.sockets.emit('new message',{msg:msg,nick:socket.nickname});
            }
       });
+
 
       socket.on('disconnect',function(data){
             if(!socket.nickname) return;
             delete users[socket.nickname];
-            //nicknames.splice(nicknames.indexOf(socket.nickname),1);
             updateNicknames();
       });
+
 
 });
